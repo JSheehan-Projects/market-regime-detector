@@ -9,7 +9,7 @@ from hmmlearn import hmm
 
 # --- Page Config ---
 st.set_page_config(
-    page_title="Quant Regime Detector",
+    page_title="Machine Learning Regime Detector",
     layout="wide",
     initial_sidebar_state="expanded"
 )
