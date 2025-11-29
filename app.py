@@ -14,11 +14,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 1. Sidebar Configuration ---
+# --- Sidebar ---
 st.sidebar.header("Model Settings")
 
 # Ticker Input
-ticker = st.sidebar.text_input("Ticker Symbol", value="SPY").upper()
+ticker = st.sidebar.text_input("Ticker Symbol", value="SPY",help="Type Ticker Symbol exactly as it appears on Yahoo Finance.").upper()
+with st.sidebar.expander("📷 Where to find Tickers?", expanded=False):
+    st.image("ticker_help.png", caption="Search Yahoo Finance for the Symbol")
+    st.markdown("Use the symbol found in the brackets (e.g. **^FTSE** for the FTSE 100 Index).")
 start_date = st.sidebar.date_input("Start Date", value=pd.to_datetime("2015-01-01"))
 window_size = st.sidebar.slider(
     "Volatility Window (Days)", 
@@ -36,6 +39,10 @@ model_type = st.sidebar.radio(
 st.sidebar.markdown("---")
 use_cblind = st.sidebar.checkbox("Colourblind Mode", value=True)
 
+st.sidebar.markdown("---")
+st.sidebar.markdown("##### [💻 View Code on GitHub](https://github.com/JSheehan-Projects/market-regime-detector)")
+
+# --- Main Page ---
 # Dynamic Description based on selection
 if model_type == "Hidden Markov Model (HMM)":
     st.title(f"📊 Market Regimes (HMM): {ticker}")
@@ -52,7 +59,7 @@ else:
     **Best For:** Understanding the distribution of returns without assuming time-dependence.
     """)
 
-# --- 2. Data Engine ---
+# --- Data Engine ---
 @st.cache_data
 def get_data(ticker, start, window):
     try:
@@ -63,18 +70,15 @@ def get_data(ticker, start, window):
     if data.empty:
         return None
 
-    # Flatten MultiIndex if necessary
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
 
-    # Price Column Fallback
     if 'Adj Close' not in data.columns and 'Close' in data.columns:
         data['Adj Close'] = data['Close']
     
     if 'Adj Close' not in data.columns:
         return None
 
-    # Feature Engineering
     data['Log_Returns'] = np.log(data['Adj Close'] / data['Adj Close'].shift(1))
     data['Volatility'] = data['Log_Returns'].rolling(window=window).std() * np.sqrt(252)
     
@@ -87,10 +91,10 @@ if data is None:
     st.error(f"Error: Could not fetch data for {ticker}. Check symbol or internet connection.")
     st.stop()
 
-# --- 3. Modeling Engine ---
+# --- Modeling Engine ---
 X = data[['Log_Returns', 'Volatility']].values
 
-# We need to store the model to extract params later
+# Store model to extract params later
 model = None
 regimes = None
 
@@ -106,7 +110,7 @@ else:
     model.fit(X)
     regimes = model.predict(X)
 
-# --- 4. Regime Sorting  ---
+# --- Regime Sorting  ---
 # We sort so that Regime 0 is always Low Vol, Regime 2 is High Vol
 # (even though the regimes are multidimentional, we can only really sort by one average)
 stats_unsorted = []
@@ -119,7 +123,7 @@ mapping = {old_label: new_label for new_label, old_label in enumerate(order)}
 ordered_regimes = np.array([mapping[label] for label in regimes])
 data['Regime'] = ordered_regimes
 
-# --- 5. Visualisation ---
+# --- Visualisation ---
 if use_cblind:
     # Colourblind Safe Palette (Blue vs Orange)
     # Low Vol: Blue, Neutral: Grey, High Vol: Orange
@@ -159,15 +163,28 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# --- 6. Model Specific Insights ---
+# --- Model Insights (New section below main graph) ---
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Regime Statistics")
-    stats = data.groupby('Regime')[['Log_Returns', 'Volatility']].mean()
+    st.subheader("Regime Statistics",help="Note: Although sorted and labeled by Volatility," \
+    " the three regimes are clustered by their combined Returns/Volatility profile. For some asset" \
+    " classes (such as Equities) we might expect a negative correlation between return and vol, for others"
+    " (e.g. Gold Futures) we might expect a positive correlation.")
+    
+    st.markdown("<br><br><br><br><br><br>", unsafe_allow_html=True)
+
+    stats = data.groupby('Regime')[['Log_Returns', 'Volatility']].mean()    
+    freq = data.groupby('Regime')['Log_Returns'].count() / len(data)
+    stats['% Time'] = freq
     stats.index = regime_names
-    stats.columns = ['Avg Daily Return', 'Avg Annual Vol']
-    st.table(stats.style.format("{:.4f}"))
+    stats.columns = ['Daily Return', 'Annualised Vol', '% Time']
+    stats = stats[['% Time', 'Daily Return', 'Annualised Vol']]
+    st.table(stats.style.format({
+        '% Time': '{:.1%}',
+        'Daily Return': '{:.4f}',
+        'Annualised Vol': '{:.4f}'
+    }))
 
 with col2:
     if model_type == "Hidden Markov Model (HMM)":
@@ -190,33 +207,58 @@ with col2:
         st.plotly_chart(fig_mat, use_container_width=True)
         
     else:
-        st.subheader("GMM Component Weights")
-        st.write("Overall proportion of time spent in each regime.")
+        st.subheader("Cluster Visualisation (2D Space)")
+        st.write("Visualising how the GMM clusters data based on Returns vs Volatility.")
         
-        # Extract and Sort Weights
-        weights = model.weights_
-        weights_sorted = weights[order]
+        # Prepare centroids
+        means = model.means_
+        means_sorted = means[order]
         
-        fig_pie = px.pie(
-            values=weights_sorted, 
-            names=regime_names,
-            color=regime_names,
-            color_discrete_map={
-                'Low Vol': '#2ca02c', 
-                'Neutral': '#ff7f0e', 
-                'High Vol': '#d62728'
-            }
-        )
-        st.plotly_chart(fig_pie, use_container_width=True)
+        # Create the Scatter Plot
+        fig_cluster = go.Figure()
+        
+        # Add the data points
+        for regime_id in range(3):
+            mask = data['Regime'] == regime_id
+            fig_cluster.add_trace(go.Scatter(
+                x=data['Log_Returns'][mask], 
+                y=data['Volatility'][mask],
+                mode='markers', 
+                name=regime_names[regime_id],
+                marker=dict(color=colors[regime_id], size=4, opacity=0.6),
+                
+                customdata=data.index[mask].strftime('%Y-%m-%d'),
+                hovertemplate="<b>Date: %{customdata}</b><br>Log-return: %{x:.4f}<br>Vol: %{y:.4f}<extra></extra>"
+            ))
+            
+        # Add the centroids
+        fig_cluster.add_trace(go.Scatter(
+            x=means_sorted[:, 0], 
+            y=means_sorted[:, 1], 
+            mode='markers',
+            name='Cluster Centres',
+            marker=dict(symbol='cross', color='white', size=11, line=dict(color='black', width=2)),
+            hoverinfo='skip' # Skip hover - centroids aren't real data points
+        ))
 
-# --- 7. Interview Cheatsheet (Hidden Expander) ---
+        # 3. Formatting
+        fig_cluster.update_layout(
+            template="plotly_dark",
+            xaxis_title="Daily Log Returns",
+            yaxis_title="Annualised Volatility",
+            height=400,
+            showlegend=True
+        )
+        st.plotly_chart(fig_cluster, use_container_width=True)
+
+# --- GMM vs HMM comparison notes ---
 with st.expander("ℹ️  Model Comparison"):
     st.markdown("""
     **Why comparing GMM and HMM matters:**
     
     1.  **Independent vs. Sequential:** 
-        * **GMM** asks: *"Does today look like a crash?"* 
-        * **HMM** asks: *"While also taking into account yesterday's situation, does today look like a crash?"*
+        * **GMM** asks: *"Does today look like a normal day?"* 
+        * **HMM** asks: *"While also taking into account yesterday's situation, does today look like a normal day?"*
         
     2.  **Noise Filtering:** 
         * Toggle to **GMM**: You will see the regimes "flicker" rapidly during transition periods.  
