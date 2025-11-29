@@ -33,13 +33,15 @@ model_type = st.sidebar.radio(
     "Choose Model:",
     ["Hidden Markov Model (HMM)", "Gaussian Mixture Model (GMM)"]
 )
+st.sidebar.markdown("---")
+use_cblind = st.sidebar.checkbox("Colourblind Mode", value=True)
 
 # Dynamic Description based on selection
 if model_type == "Hidden Markov Model (HMM)":
     st.title(f"📊 Market Regimes (HMM): {ticker}")
     st.markdown("""
     **Technique:** Bishop Chapter 13 (Sequential Data).  
-    **Concept:** Assumes markets have "memory." The probability of being in a Bull/Bear state today depends on yesterday's state.  
+    **Concept:** Clusters days based on their Returns/Volatility profile, while also assuming markets have "memory." The probability of being in a certain market state today depends on yesterday's market state.  
     **Best For:** Capturing sustained trends and filtering out daily noise.
     """)
 else:
@@ -104,9 +106,9 @@ else:
     model.fit(X)
     regimes = model.predict(X)
 
-# --- 4. Regime Sorting (Crucial for Consistency) ---
+# --- 4. Regime Sorting  ---
 # We sort so that Regime 0 is always Low Vol, Regime 2 is High Vol
-# This ensures Green is always Bull, Red is always Bear
+# (even though the regimes are multidimentional, we can only really sort by one average)
 stats_unsorted = []
 for i in range(3):
     # Mean Volatility for this cluster
@@ -118,8 +120,17 @@ ordered_regimes = np.array([mapping[label] for label in regimes])
 data['Regime'] = ordered_regimes
 
 # --- 5. Visualisation ---
-colors = ['#2ca02c', '#ff7f0e', '#d62728'] # Green, Orange, Red
-regime_names = ['Low Vol (Bull)', 'Neutral', 'High Vol (Bear)']
+if use_cblind:
+    # Colourblind Safe Palette (Blue vs Orange)
+    # Low Vol: Blue, Neutral: Grey, High Vol: Orange
+    colors = ['#377eb8', '#999999', '#ff7f0e'] 
+else:
+    # Standard Finance Palette (Green vs Red)
+    # Low Vol: Green, Neutral: Grey, High Vol: Red
+    # EDIT THESE HEX CODES TO CHANGE YOUR STANDARD COLOURS
+    colors = ['#2ca02c', '#7f7f7f', '#d62728']
+
+regime_names = ['Low Volatility', 'Neutral Volatility', 'High Volatility']
 
 # Main Chart
 fig = go.Figure()
@@ -191,9 +202,9 @@ with col2:
             names=regime_names,
             color=regime_names,
             color_discrete_map={
-                'Low Vol (Bull)': '#2ca02c', 
+                'Low Vol': '#2ca02c', 
                 'Neutral': '#ff7f0e', 
-                'High Vol (Bear)': '#d62728'
+                'High Vol': '#d62728'
             }
         )
         st.plotly_chart(fig_pie, use_container_width=True)
