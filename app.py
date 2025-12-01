@@ -161,7 +161,7 @@ fig.update_layout(
     hovermode="x",
     height=600
 )
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, width="stretch")
 
 # --- Model Insights (New section below main graph) ---
 col1, col2 = st.columns(2)
@@ -204,7 +204,7 @@ with col2:
         fig_mat.update_traces(
             hovertemplate="From State: %{y}<br>To State: %{x}<br>Probability: %{z:.4f}<extra></extra>"
         )
-        st.plotly_chart(fig_mat, use_container_width=True)
+        st.plotly_chart(fig_mat, width="stretch")
         
     else:
         st.subheader("Cluster Visualisation (2D Space)")
@@ -249,7 +249,7 @@ with col2:
             height=400,
             showlegend=True
         )
-        st.plotly_chart(fig_cluster, use_container_width=True)
+        st.plotly_chart(fig_cluster, width="stretch")
 
 # --- GMM vs HMM comparison notes ---
 with st.expander("ℹ️  Model Comparison"):
