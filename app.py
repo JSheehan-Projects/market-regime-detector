@@ -34,7 +34,11 @@ st.sidebar.markdown("---")
 st.sidebar.header("Algorithm Selection")
 model_type = st.sidebar.radio(
     "Choose Model:",
-    ["Hidden Markov Model (HMM)", "Gaussian Mixture Model (GMM)"]
+    ["Gaussian Mixture Model (GMM)", "Hidden Markov Model (HMM)"],
+    help="Note on HMM: This is a work in progress prototype."
+         "Areas for further exploration to prevent State Collapse and improved accuracy include: "
+         "Feature Scaling, Log-Transformations for more Guassian Features, and test different " \
+         "hyperparamaters (such as Number of States) to optimise using BIC."
 )
 st.sidebar.markdown("---")
 use_cblind = st.sidebar.checkbox("Colourblind Mode", value=True)
