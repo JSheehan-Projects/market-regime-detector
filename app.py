@@ -18,7 +18,7 @@ st.set_page_config(
 st.sidebar.header("Model Settings")
 
 # Ticker Input
-ticker = st.sidebar.text_input("Ticker Symbol", value="SPY",help="Type Ticker Symbol exactly as it appears on Yahoo Finance.").upper()
+ticker = st.sidebar.text_input("Ticker Symbol", value="^GSPC",help="Type Ticker Symbol exactly as it appears on Yahoo Finance.").upper()
 with st.sidebar.expander("📷 Where to find Tickers?", expanded=False):
     st.image("ticker_help.png", caption="Search Yahoo Finance for the Symbol")
     st.markdown("Use the symbol found in the brackets (e.g. **^FTSE** for the FTSE 100 Index).")
